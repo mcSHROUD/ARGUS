@@ -1,0 +1,22 @@
+services:
+  argus:
+    build: .
+    image: argus:dev
+    container_name: argus
+    restart: unless-stopped
+    devices:
+      - "/dev/video0:/dev/video0"
+      - "/dev/video1:/dev/video1"
+    volumes:
+      - ./data:/data
+      - ./models:/models
+      - ./config.yaml:/app/config.yaml:ro
+      - ./argus:/app/argus:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ARGUS_CONFIG: /app/config.yaml
+      ARGUS_DATA_DIR: /data
+      ARGUS_MODELS_DIR: /models
+      PYTHONPATH: /app  # live-reload кода из volume без пересборки образа
+    command: ["run"]

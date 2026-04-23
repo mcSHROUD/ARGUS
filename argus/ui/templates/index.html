@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}События — ARGUS{% endblock %}
+{% block content %}
+<div class="filter">
+    <a href="/" {% if not verdict %}class="active"{% endif %}>Все</a>
+    <a href="/?verdict=defect" {% if verdict == 'defect' %}class="active"{% endif %}>Дефекты</a>
+    <a href="/?verdict=good" {% if verdict == 'good' %}class="active"{% endif %}>Норма</a>
+</div>
+
+{% if cups %}
+<table>
+    <thead>
+        <tr><th>#</th><th>Время</th><th>Вердикт</th><th>Score</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for cup in cups %}
+        <tr>
+            <td>{{ cup.id }}</td>
+            <td>{{ cup.ts.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td class="{{ cup.verdict }}">{{ cup.verdict }}</td>
+            <td>{{ '%.3f' | format(cup.score) }}</td>
+            <td><a href="/cup/{{ cup.id }}">подробнее</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Событий пока нет.</p>
+{% endif %}
+{% endblock %}
