@@ -20,8 +20,9 @@ app = FastAPI(title="ARGUS review")
 def index(request: Request, verdict: str | None = None, limit: int = 50) -> HTMLResponse:
     cups = storage.list_cups(limit=limit, verdict=verdict)
     return templates.TemplateResponse(
+        request,
         "index.html",
-        {"request": request, "cups": cups, "verdict": verdict},
+        {"cups": cups, "verdict": verdict},
     )
 
 
@@ -30,7 +31,7 @@ def cup_detail(request: Request, cup_id: int) -> HTMLResponse:
     cup = storage.get_cup(cup_id)
     if cup is None:
         raise HTTPException(404, "cup not found")
-    return templates.TemplateResponse("cup.html", {"request": request, "cup": cup})
+    return templates.TemplateResponse(request, "cup.html", {"cup": cup})
 
 
 @app.get("/image")

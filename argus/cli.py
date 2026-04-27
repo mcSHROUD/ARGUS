@@ -83,13 +83,7 @@ def run(config) -> None:
     from argus.pipeline import Orchestrator
 
     orch = Orchestrator(config)
-    try:
-        import asyncio
-
-        asyncio.run(orch.run())
-    except NotImplementedError as e:
-        click.echo(f"[not yet implemented] {e}", err=True)
-        sys.exit(2)
+    orch.run()
 
 
 @cli.command()
@@ -143,12 +137,24 @@ def ui(config) -> None:
 
 
 @cli.command()
-@click.argument("videos_dir", type=click.Path(exists=True))
+@click.argument("video_cam1", type=click.Path(exists=True))
+@click.argument("video_cam2", type=click.Path(exists=False), required=False)
 @click.pass_obj
-def replay(config, videos_dir: str) -> None:
-    """Replay pre-recorded videos through the pipeline (offline testing)."""
-    click.echo(f"[not yet implemented] replay from {videos_dir}")
-    sys.exit(2)
+def replay(config, video_cam1: str, video_cam2: str | None) -> None:
+    """Replay one or two pre-recorded videos through the pipeline.
+
+    Useful for end-to-end testing without real cameras attached.
+    If only one video is given, the second camera is omitted.
+    """
+    from argus.pipeline import Orchestrator
+
+    sources = (video_cam1, video_cam2 if video_cam2 else None)
+    if video_cam2:
+        click.echo(f"replay: cam1={video_cam1} cam2={video_cam2}")
+    else:
+        click.echo(f"replay: cam1={video_cam1} (no cam2 — events will be unpaired)")
+    orch = Orchestrator(config, sources=sources)
+    orch.run()
 
 
 @cli.command("extract-video")

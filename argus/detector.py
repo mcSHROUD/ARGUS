@@ -40,10 +40,12 @@ class DefectDetector:
             raise FileNotFoundError(
                 f"Model weights not found at {ckpt_path}. Run `argus calibrate` first."
             )
+        # pre_trained=False avoids re-downloading the ImageNet backbone from HF —
+        # the full state (including backbone weights) is already in our checkpoint.
         model = Patchcore(
             backbone=self.cfg.backbone,
             layers=("layer2", "layer3"),
-            pre_trained=True,
+            pre_trained=False,
         )
         ckpt = torch.load(str(ckpt_path), map_location=self._device, weights_only=False)
         model.load_state_dict(ckpt["state_dict"])

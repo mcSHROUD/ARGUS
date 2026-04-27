@@ -19,4 +19,6 @@ services:
       ARGUS_DATA_DIR: /data
       ARGUS_MODELS_DIR: /models
       PYTHONPATH: /app  # live-reload кода из volume без пересборки образа
+      HF_HOME: /models/.hf-cache  # кешируем веса бэкбона на хосте между запусками
+      TRANSFORMERS_OFFLINE: "0"
     command: ["run"]

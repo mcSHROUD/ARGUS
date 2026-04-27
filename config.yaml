@@ -39,8 +39,8 @@ storage:
   save_worst_only: true  # сохранять только кадр с максимальным score на камеру
 
 ui:
-  host: 127.0.0.1
-  port: 8000
+  host: 0.0.0.0          # внутри контейнера слушаем все интерфейсы
+  port: 8000             # на хосте публикуется только на 127.0.0.1 (см. docker-compose.yml)
 
 logging:
   level: INFO
