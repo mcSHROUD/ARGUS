@@ -30,6 +30,17 @@ from argus.storage import Storage
 logger = logging.getLogger(__name__)
 
 
+def _make_heatmap_overlay(frame: np.ndarray, anomaly_map: np.ndarray, alpha: float = 0.45) -> np.ndarray:
+    h, w = frame.shape[:2]
+    am = anomaly_map.squeeze().astype(np.float32)
+    lo, hi = am.min(), am.max()
+    if hi > lo:
+        am = (am - lo) / (hi - lo)
+    heatmap = cv2.applyColorMap((am * 255).astype(np.uint8), cv2.COLORMAP_JET)
+    heatmap = cv2.resize(heatmap, (w, h))
+    return cv2.addWeighted(frame, 1.0 - alpha, heatmap, alpha, 0)
+
+
 @dataclass
 class CupEvent:
     ts: datetime
@@ -228,7 +239,6 @@ class Orchestrator:
         result = self.detector.infer(cup.cam1_frames, cup.cam2_frames)
         verdict = "defect" if result.is_defect else "good"
 
-        # save only the worst frame per camera (cheap; can be changed via config)
         cup_id = self.storage.insert_cup(
             ts=cup.ts,
             verdict=verdict,
@@ -240,32 +250,56 @@ class Orchestrator:
 
         cam1_path: Path | None = None
         cam2_path: Path | None = None
+        cam1_heatmap_path: Path | None = None
+        cam2_heatmap_path: Path | None = None
+
         if cup.cam1_frames and result.worst_frame_idx_cam1 >= 0:
-            cam1_path = self.storage.save_frame(
-                cup.cam1_frames[result.worst_frame_idx_cam1],
-                "cam1",
-                cup.ts,
-                cup_id,
-            )
+            worst1 = cup.cam1_frames[result.worst_frame_idx_cam1]
+            cam1_path = self.storage.save_frame(worst1, "cam1", cup.ts, cup_id)
+            if result.anomaly_map_cam1 is not None:
+                cam1_heatmap_path = self.storage.save_frame(
+                    _make_heatmap_overlay(worst1, result.anomaly_map_cam1),
+                    "cam1_heatmap",
+                    cup.ts,
+                    cup_id,
+                )
+
         if cup.cam2_frames and result.worst_frame_idx_cam2 >= 0:
-            cam2_path = self.storage.save_frame(
-                cup.cam2_frames[result.worst_frame_idx_cam2],
-                "cam2",
-                cup.ts,
-                cup_id,
-            )
-        self._update_paths(cup_id, cam1_path, cam2_path)
+            worst2 = cup.cam2_frames[result.worst_frame_idx_cam2]
+            cam2_path = self.storage.save_frame(worst2, "cam2", cup.ts, cup_id)
+            if result.anomaly_map_cam2 is not None:
+                cam2_heatmap_path = self.storage.save_frame(
+                    _make_heatmap_overlay(worst2, result.anomaly_map_cam2),
+                    "cam2_heatmap",
+                    cup.ts,
+                    cup_id,
+                )
+
+        self._update_paths(cup_id, cam1_path, cam2_path, cam1_heatmap_path, cam2_heatmap_path)
 
         logger.info(
             f"cup #{cup_id}: {verdict} score={result.score:.2f} "
             f"paired={cup.is_paired} cam1={len(cup.cam1_frames)}f cam2={len(cup.cam2_frames)}f"
         )
 
-    def _update_paths(self, cup_id: int, cam1: Path | None, cam2: Path | None) -> None:
+    def _update_paths(
+        self,
+        cup_id: int,
+        cam1: Path | None,
+        cam2: Path | None,
+        cam1_heatmap: Path | None = None,
+        cam2_heatmap: Path | None = None,
+    ) -> None:
         with self.storage.connection() as conn:
             conn.execute(
-                "UPDATE cups SET cam1_path = ?, cam2_path = ? WHERE id = ?",
-                (str(cam1) if cam1 else None, str(cam2) if cam2 else None, cup_id),
+                "UPDATE cups SET cam1_path=?, cam2_path=?, cam1_heatmap_path=?, cam2_heatmap_path=? WHERE id=?",
+                (
+                    str(cam1) if cam1 else None,
+                    str(cam2) if cam2 else None,
+                    str(cam1_heatmap) if cam1_heatmap else None,
+                    str(cam2_heatmap) if cam2_heatmap else None,
+                    cup_id,
+                ),
             )
 
     def _shutdown(self) -> None:

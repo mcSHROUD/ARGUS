@@ -13,13 +13,15 @@ import numpy as np
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cups (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts          TEXT NOT NULL,
-    verdict     TEXT NOT NULL CHECK (verdict IN ('good', 'defect')),
-    score       REAL NOT NULL,
-    cam1_path   TEXT,
-    cam2_path   TEXT,
-    notes       TEXT
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts                 TEXT NOT NULL,
+    verdict            TEXT NOT NULL CHECK (verdict IN ('good', 'defect')),
+    score              REAL NOT NULL,
+    cam1_path          TEXT,
+    cam2_path          TEXT,
+    cam1_heatmap_path  TEXT,
+    cam2_heatmap_path  TEXT,
+    notes              TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_cups_ts ON cups(ts);
 CREATE INDEX IF NOT EXISTS idx_cups_verdict ON cups(verdict);
@@ -60,6 +62,8 @@ class CupRecord:
     score: float
     cam1_path: str | None
     cam2_path: str | None
+    cam1_heatmap_path: str | None
+    cam2_heatmap_path: str | None
     notes: str | None
 
 
@@ -89,6 +93,12 @@ class Storage:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+            # lazy migration: add heatmap columns if DB was created before this feature
+            for col in ("cam1_heatmap_path", "cam2_heatmap_path"):
+                try:
+                    conn.execute(f"ALTER TABLE cups ADD COLUMN {col} TEXT")
+                except sqlite3.OperationalError:
+                    pass  # column already exists
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -150,17 +160,54 @@ class Storage:
         limit: int = 100,
         offset: int = 0,
         verdict: str | None = None,
+        date: str | None = None,
     ) -> list[CupRecord]:
-        query = "SELECT * FROM cups"
+        query = "SELECT * FROM cups WHERE 1=1"
         params: list = []
         if verdict:
-            query += " WHERE verdict = ?"
+            query += " AND verdict = ?"
             params.append(verdict)
+        if date:
+            query += " AND date(ts) = ?"
+            params.append(date)
         query += " ORDER BY ts DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         with self._connect() as conn:
             rows = conn.execute(query, params).fetchall()
         return [self._row_to_cup(r) for r in rows]
+
+    def get_daily_stats(self, date: str) -> dict:
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN verdict='defect' THEN 1 ELSE 0 END) as defects,
+                    SUM(CASE WHEN verdict='good'   THEN 1 ELSE 0 END) as good
+                FROM cups WHERE date(ts) = ?""",
+                (date,),
+            ).fetchone()
+        total = row["total"] or 0
+        defects = row["defects"] or 0
+        good = row["good"] or 0
+        return {
+            "total": total,
+            "defects": defects,
+            "good": good,
+            "defect_rate": (defects / total * 100) if total > 0 else 0.0,
+        }
+
+    def get_hourly_counts(self, date: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT
+                    CAST(strftime('%H', ts) AS INTEGER) as hour,
+                    SUM(CASE WHEN verdict='defect' THEN 1 ELSE 0 END) as defects,
+                    SUM(CASE WHEN verdict='good'   THEN 1 ELSE 0 END) as good
+                FROM cups WHERE date(ts) = ?
+                GROUP BY hour ORDER BY hour""",
+                (date,),
+            ).fetchall()
+        return [{"hour": r["hour"], "defects": r["defects"], "good": r["good"]} for r in rows]
 
     def get_cup(self, cup_id: int) -> CupRecord | None:
         with self._connect() as conn:
@@ -183,5 +230,7 @@ class Storage:
             score=row["score"],
             cam1_path=row["cam1_path"],
             cam2_path=row["cam2_path"],
+            cam1_heatmap_path=row["cam1_heatmap_path"],
+            cam2_heatmap_path=row["cam2_heatmap_path"],
             notes=row["notes"],
         )

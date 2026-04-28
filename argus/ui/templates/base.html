@@ -4,26 +4,41 @@
     <meta charset="utf-8">
     <title>{% block title %}ARGUS{% endblock %}</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <style>
         body { font-family: -apple-system, system-ui, sans-serif; max-width: 1200px; margin: 2rem auto; padding: 0 1rem; color: #222; }
         h1 { border-bottom: 2px solid #eee; padding-bottom: .5rem; }
+        h3 { margin-top: 2rem; }
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #eee; }
         tr:hover { background: #f8f8f8; }
         .defect { color: #c00; font-weight: bold; }
         .good { color: #0a0; }
-        .filter { margin: 1rem 0; }
-        .filter a { margin-right: 1rem; text-decoration: none; padding: .25rem .5rem; border-radius: 4px; }
-        .filter a.active { background: #222; color: #fff; }
-        img { max-width: 100%; border: 1px solid #ddd; }
+        img { max-width: 100%; border: 1px solid #ddd; border-radius: 4px; }
         .row { display: flex; gap: 1rem; }
         .col { flex: 1; }
-        button { padding: .5rem 1rem; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 4px; }
-        button:hover { background: #f0f0f0; }
+        .notes { color: #a60; background: #fff8e1; padding: .4rem .7rem; border-radius: 4px; }
+
+        /* toolbar */
+        .toolbar { display: flex; align-items: center; gap: 1.5rem; margin: 1rem 0; }
+        .toolbar input[type=date] { padding: .35rem .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; }
+        .btn { display: inline-block; padding: .4rem .9rem; border: 1px solid #ccc; border-radius: 4px;
+               text-decoration: none; color: #222; background: #fff; cursor: pointer; }
+        .btn:hover { background: #f0f0f0; }
+        .btn-export { border-color: #0a0; color: #0a0; }
+        .btn-export:hover { background: #f0fff0; }
+
+        /* stat cards */
+        .stats-row { display: flex; gap: 1rem; margin: 1.5rem 0; }
+        .stat-card { flex: 1; border: 1px solid #eee; border-radius: 8px; padding: 1rem 1.2rem; text-align: center; }
+        .stat-value { font-size: 2.2rem; font-weight: bold; line-height: 1; }
+        .stat-label { margin-top: .4rem; color: #666; font-size: .9rem; }
+        .stat-card.bad .stat-value { color: #c00; }
+        .stat-card.ok  .stat-value { color: #0a0; }
     </style>
 </head>
 <body>
-    <h1>ARGUS — review</h1>
+    <h1>ARGUS — мониторинг дефектов</h1>
     {% block content %}{% endblock %}
 </body>
 </html>

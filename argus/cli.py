@@ -199,6 +199,130 @@ def extract_video(config, video: str, cam: str, out_dir: str, no_roi: bool) -> N
     click.echo(f"saved {total} frames across {len(bursts)} bursts to {out_dir}")
 
 
+@cli.command("diagnose-motion")
+@click.argument("video", type=click.Path(exists=True, dir_okay=False))
+@click.option("--cam", default="cam1", help="Camera config to use for ROI (default: cam1)")
+@click.option("--no-roi", is_flag=True, help="Skip ROI crop, use full frame")
+@click.option("--csv", "csv_path", default=None, type=click.Path(), help="Save frame scores to CSV")
+@click.option("--plot", "plot_path", default=None, type=click.Path(), help="Save histogram PNG (requires matplotlib)")
+@click.pass_obj
+def diagnose_motion(
+    config, video: str, cam: str, no_roi: bool, csv_path: str | None, plot_path: str | None
+) -> None:
+    """Analyse frame-diff scores from a recorded video.
+
+    Prints score statistics and suggests drum_stop_threshold / drum_move_threshold
+    values for config.yaml. Run on 5-10 min of production video before calibrating.
+
+    Example:\n
+        argus diagnose-motion line.mp4 --plot motion.png
+    """
+    import csv as csv_mod
+
+    import cv2
+    import numpy as np
+
+    from argus.motion_fsm import frame_diff_score
+
+    DOWNSAMPLE = 4
+
+    cam_cfg = next((c for c in config.cameras if c.id == cam), None)
+    if cam_cfg is None:
+        click.echo(f"error: camera '{cam}' not found in config", err=True)
+        sys.exit(1)
+
+    roi = None if no_roi else cam_cfg.roi
+
+    cap = cv2.VideoCapture(video)
+    if not cap.isOpened():
+        click.echo(f"error: cannot open {video}", err=True)
+        sys.exit(1)
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    click.echo(f"video  : {video}")
+    click.echo(f"frames : {total_frames}  fps: {fps:.1f}  duration: {total_frames / fps:.1f}s")
+    click.echo(f"roi    : {roi or 'full frame'}")
+
+    scores: list[float] = []
+    prev_small = None
+
+    with click.progressbar(length=total_frames, label="analysing") as bar:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            if roi is not None:
+                x, y, w, h = roi
+                frame = frame[y : y + h, x : x + w]
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            small = cv2.resize(
+                gray,
+                (max(1, gray.shape[1] // DOWNSAMPLE), max(1, gray.shape[0] // DOWNSAMPLE)),
+            )
+            if prev_small is not None:
+                scores.append(frame_diff_score(prev_small, small))
+            prev_small = small
+            bar.update(1)
+
+    cap.release()
+
+    if not scores:
+        click.echo("error: no frames read", err=True)
+        sys.exit(1)
+
+    arr = np.array(scores)
+    p10, p25, p50, p75, p90 = np.percentile(arr, [10, 25, 50, 75, 90])
+
+    click.echo(f"\n{'─' * 42}")
+    click.echo(f"  frames analysed : {len(scores)}")
+    click.echo(f"  min             : {arr.min():.4f}")
+    click.echo(f"  p10             : {p10:.4f}")
+    click.echo(f"  p25             : {p25:.4f}")
+    click.echo(f"  median (p50)    : {p50:.4f}")
+    click.echo(f"  p75             : {p75:.4f}")
+    click.echo(f"  p90             : {p90:.4f}")
+    click.echo(f"  max             : {arr.max():.4f}")
+    click.echo(f"{'─' * 42}")
+    click.echo("\n[suggested values for config.yaml → motion:]")
+    click.echo(f"  drum_stop_threshold: {p25:.3f}   # ≈ p25 (тихие кадры)")
+    click.echo(f"  drum_move_threshold: {p75:.3f}   # ≈ p75 (кадры с движением)")
+    click.echo("\n[current config.yaml values:]")
+    click.echo(f"  drum_stop_threshold: {config.motion.drum_stop_threshold}")
+    click.echo(f"  drum_move_threshold: {config.motion.drum_move_threshold}")
+
+    if csv_path:
+        with open(csv_path, "w", newline="") as f:
+            writer = csv_mod.writer(f)
+            writer.writerow(["frame", "diff_score"])
+            for i, s in enumerate(scores):
+                writer.writerow([i, f"{s:.6f}"])
+        click.echo(f"\nCSV → {csv_path}")
+
+    if plot_path:
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.hist(arr, bins=100, color="#4488cc", alpha=0.7, edgecolor="none")
+            ax.axvline(p25, color="#00aa00", linestyle="--", linewidth=1.5,
+                       label=f"stop_threshold = {p25:.3f} (p25)")
+            ax.axvline(p75, color="#cc0000", linestyle="--", linewidth=1.5,
+                       label=f"move_threshold = {p75:.3f} (p75)")
+            ax.set_xlabel("frame_diff_score")
+            ax.set_ylabel("кадров")
+            ax.set_title(f"Распределение motion-score — {Path(video).name}")
+            ax.legend()
+            fig.tight_layout()
+            fig.savefig(plot_path, dpi=120)
+            plt.close(fig)
+            click.echo(f"plot  → {plot_path}")
+        except ImportError:
+            click.echo("matplotlib не установлен — plot пропущен")
+
+
 def main() -> None:
     cli()
 

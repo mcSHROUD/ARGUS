@@ -1,30 +1,82 @@
 {% extends "base.html" %}
-{% block title %}События — ARGUS{% endblock %}
+{% block title %}ARGUS — Дашборд{% endblock %}
 {% block content %}
-<div class="filter">
-    <a href="/" {% if not verdict %}class="active"{% endif %}>Все</a>
-    <a href="/?verdict=defect" {% if verdict == 'defect' %}class="active"{% endif %}>Дефекты</a>
-    <a href="/?verdict=good" {% if verdict == 'good' %}class="active"{% endif %}>Норма</a>
+
+<div class="toolbar">
+    <form method="get">
+        <label>Дата: <input type="date" name="date" value="{{ date }}" onchange="this.form.submit()"></label>
+    </form>
+    <a href="/export?date={{ date }}" class="btn btn-export">⬇ Скачать Excel</a>
 </div>
 
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">Всего стаканов</div>
+    </div>
+    <div class="stat-card bad">
+        <div class="stat-value">{{ stats.defects }}</div>
+        <div class="stat-label">Дефектов</div>
+    </div>
+    <div class="stat-card ok">
+        <div class="stat-value">{{ stats.good }}</div>
+        <div class="stat-label">Норма</div>
+    </div>
+    <div class="stat-card {% if stats.defect_rate > 10 %}bad{% endif %}">
+        <div class="stat-value">{{ "%.1f" | format(stats.defect_rate) }}%</div>
+        <div class="stat-label">% брака</div>
+    </div>
+</div>
+
+<h3>Дефекты по часам</h3>
+<canvas id="hourlyChart" height="70"></canvas>
+<script>
+const hourly = {{ hourly_json | safe }};
+new Chart(document.getElementById('hourlyChart'), {
+    type: 'bar',
+    data: {
+        labels: hourly.map(d => String(d.hour).padStart(2,'0') + ':00'),
+        datasets: [
+            { label: 'Дефекты', data: hourly.map(d => d.defects), backgroundColor: '#cc000099' },
+            { label: 'Норма',   data: hourly.map(d => d.good),    backgroundColor: '#00aa0033' },
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'top' } },
+        scales: {
+            x: { stacked: true },
+            y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+        }
+    }
+});
+</script>
+
+<h3>Дефектные стаканы за {{ date }}</h3>
 {% if cups %}
 <table>
     <thead>
-        <tr><th>#</th><th>Время</th><th>Вердикт</th><th>Score</th><th></th></tr>
+        <tr><th>#</th><th>Время</th><th>Score</th><th>Фото</th><th></th></tr>
     </thead>
     <tbody>
         {% for cup in cups %}
         <tr>
             <td>{{ cup.id }}</td>
-            <td>{{ cup.ts.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-            <td class="{{ cup.verdict }}">{{ cup.verdict }}</td>
-            <td>{{ '%.3f' | format(cup.score) }}</td>
+            <td>{{ cup.ts.strftime('%H:%M:%S') }}</td>
+            <td class="defect">{{ '%.3f' | format(cup.score) }}</td>
+            <td>
+                {% if cup.cam1_path %}
+                    <img src="/image?path={{ cup.cam1_path }}" style="height:52px;width:auto;">
+                {% elif cup.cam2_path %}
+                    <img src="/image?path={{ cup.cam2_path }}" style="height:52px;width:auto;">
+                {% endif %}
+            </td>
             <td><a href="/cup/{{ cup.id }}">подробнее</a></td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 {% else %}
-<p>Событий пока нет.</p>
+<p style="color:#0a0">Дефектов за {{ date }} не обнаружено.</p>
 {% endif %}
 {% endblock %}
