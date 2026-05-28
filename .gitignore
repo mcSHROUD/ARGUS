@@ -12,6 +12,7 @@ build/
 
 data/
 models/
+models_new/
 *.db
 *.db-wal
 *.db-shm

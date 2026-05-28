@@ -39,6 +39,9 @@ def train(
         n_abn = len(list(abnormal_dir.glob("*.jpg"))) + len(list(abnormal_dir.glob("*.png")))
         logger.info(f"validation: {n_abn} abnormal frames from {abnormal_dir}")
 
+    normal_dir = normal_dir.resolve()
+    abnormal_dir = abnormal_dir.resolve() if abnormal_dir else None
+
     datamodule = Folder(
         name="cups",
         root=normal_dir.parent.parent,

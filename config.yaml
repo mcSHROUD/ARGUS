@@ -15,8 +15,8 @@ cameras:
 motion:
   history: 500
   var_threshold: 16
-  drum_stop_threshold: 0.075   # frame-diff в ROI: <= = барабан стоит (стакан ещё может крутиться)
-  drum_move_threshold: 0.12    # frame-diff в ROI: >= = барабан крутится
+  drum_stop_threshold: 0.004   # frame-diff в ROI: <= = барабан стоит (стакан ещё может крутиться)
+  drum_move_threshold: 0.019   # frame-diff в ROI: >= = барабан крутится
   stop_window_ms: 50           # мс "тишины" после пика вращения
 
 burst:
@@ -28,7 +28,7 @@ sync:
   window_ms: 300         # окно матчинга событий двух камер
 
 detector:
-  model_path: /models/patchcore.ckpt
+  model_path: models/patchcore.ckpt
   backbone: wide_resnet50_2
   threshold: 0.5         # перезаписывается при calibrate
   image_size: [256, 256]

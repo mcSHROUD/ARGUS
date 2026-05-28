@@ -51,7 +51,8 @@ def doctor(config) -> None:
     for cam in config.cameras:
         click.echo(f"  {cam.id} @ {cam.device} ({cam.width}x{cam.height} @ {cam.fps}fps)")
         try:
-            worker = CameraWorker(cam, config.motion, config.burst)
+            import queue as _queue
+            worker = CameraWorker(cam, config.motion, config.burst, _queue.Queue())
             ok = worker.probe()
             click.echo(f"    probe: {'OK' if ok else 'FAIL (no frame)'}")
         except Exception as e:
