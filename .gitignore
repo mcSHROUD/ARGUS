@@ -10,16 +10,14 @@ venv/
 dist/
 build/
 
-data/
+data/*.db
+data/*.db-wal
+data/*.db-shm
 models/
-models_new/
+
 *.db
 *.db-wal
 *.db-shm
-*.jpg
-*.png
-!tests/fixtures/*.jpg
-!tests/fixtures/*.png
 
 .vscode/
 .idea/
