@@ -84,7 +84,7 @@ def add_scratch(img: np.ndarray, rng: random.Random) -> np.ndarray:
         # fallback: center of image
         pt = (w // 2, h // 2)
     x0, y0 = pt
-    length = rng.randint(int(min(h, w) * 0.05), int(min(h, w) * 0.30))
+    length = rng.randint(int(min(h, w) * 0.15), int(min(h, w) * 0.45))
     angle = rng.uniform(0, np.pi * 2)
     x1 = int(np.clip(x0 + length * np.cos(angle), 0, w - 1))
     y1 = int(np.clip(y0 + length * np.sin(angle), 0, h - 1))
@@ -98,11 +98,11 @@ def add_scratch(img: np.ndarray, rng: random.Random) -> np.ndarray:
     local = out[max(0, y0 - 20):y0 + 20, max(0, x0 - 20):x0 + 20]
     base_brightness = int(local.mean()) if local.size else 120
     if rng.random() < 0.6:  # dark scratch (most common)
-        color = tuple(max(0, base_brightness - rng.randint(40, 100)) for _ in range(3))
+        color = tuple(max(0, base_brightness - rng.randint(70, 140)) for _ in range(3))
     else:  # bright reflection / metallic scratch
-        color = tuple(min(255, base_brightness + rng.randint(50, 120)) for _ in range(3))
+        color = tuple(min(255, base_brightness + rng.randint(80, 150)) for _ in range(3))
 
-    thickness = rng.randint(1, 4)
+    thickness = rng.randint(2, 6)
     # Draw main line
     cv2.polylines(out, [pts.reshape(-1, 1, 2)], False, color, thickness, cv2.LINE_AA)
 
@@ -128,7 +128,7 @@ def add_dent(img: np.ndarray, rng: random.Random) -> np.ndarray:
     if pt is None:
         pt = (w // 2, h // 2)
     cx, cy = pt
-    rx = rng.randint(int(min(h, w) * 0.04), int(min(h, w) * 0.12))
+    rx = rng.randint(int(min(h, w) * 0.08), int(min(h, w) * 0.20))
     ry = int(rx * rng.uniform(0.5, 1.5))
     angle_deg = rng.randint(0, 180)
 
@@ -146,7 +146,7 @@ def add_dent(img: np.ndarray, rng: random.Random) -> np.ndarray:
     dist = np.sqrt(rx_d ** 2 + ry_d ** 2)
 
     # Smooth falloff: only pixels inside 2×ellipse radius
-    strength = rng.uniform(4, 12)
+    strength = rng.uniform(10, 25)
     falloff = np.clip(1.0 - dist / 2.0, 0, 1) ** 2
     map_x = map_x + dx * falloff * (strength / max(rx, ry))
     map_y = map_y + dy * falloff * (strength / max(rx, ry))
@@ -159,7 +159,7 @@ def add_dent(img: np.ndarray, rng: random.Random) -> np.ndarray:
     light_dir = rng.uniform(0, np.pi * 2)
     shadow = (dx * np.cos(light_dir) + dy * np.sin(light_dir)) / max(rx, ry)
     shadow = np.clip(shadow * falloff, -1, 1)
-    shadow_map = (shadow * rng.uniform(20, 50))[..., np.newaxis]
+    shadow_map = (shadow * rng.uniform(40, 80))[..., np.newaxis]
 
     result = np.clip(warped + shadow_map, 0, 255).astype(np.uint8)
 
@@ -179,7 +179,7 @@ def add_spot(img: np.ndarray, rng: random.Random) -> np.ndarray:
     if pt is None:
         pt = (w // 2, h // 2)
     cx, cy = pt
-    size = rng.randint(int(min(h, w) * 0.02), int(min(h, w) * 0.10))
+    size = rng.randint(int(min(h, w) * 0.06), int(min(h, w) * 0.18))
 
     # Build irregular polygon by perturbing a circle
     n_pts = rng.randint(7, 14)
@@ -196,20 +196,19 @@ def add_spot(img: np.ndarray, rng: random.Random) -> np.ndarray:
     base = local.mean(axis=(0, 1)) if local.size else np.array([120.0, 120.0, 120.0])
 
     if spot_type == "oil":
-        # Semi-transparent darker smear with slight rainbow tint
         tint = np.array([rng.randint(-20, 20), rng.randint(-20, 20), rng.randint(-20, 20)])
-        spot_color = tuple(int(np.clip(base[i] * 0.55 + tint[i], 0, 255)) for i in range(3))
-        alpha = rng.uniform(0.35, 0.65)
+        spot_color = tuple(int(np.clip(base[i] * 0.40 + tint[i], 0, 255)) for i in range(3))
+        alpha = rng.uniform(0.55, 0.80)
     elif spot_type == "grease":
-        spot_color = tuple(int(np.clip(base[i] * 0.70 + rng.randint(5, 25), 0, 255)) for i in [2, 1, 0])
-        alpha = rng.uniform(0.4, 0.7)
+        spot_color = tuple(int(np.clip(base[i] * 0.60 + rng.randint(5, 25), 0, 255)) for i in [2, 1, 0])
+        alpha = rng.uniform(0.60, 0.85)
     elif spot_type == "dust":
-        v = int(np.clip(base.mean() * 1.15 + rng.randint(10, 40), 0, 255))
+        v = int(np.clip(base.mean() * 1.25 + rng.randint(20, 60), 0, 255))
         spot_color = (v, v, v)
-        alpha = rng.uniform(0.25, 0.5)
+        alpha = rng.uniform(0.50, 0.75)
     else:  # dark smudge
-        spot_color = tuple(int(np.clip(base[i] * rng.uniform(0.2, 0.45), 0, 255)) for i in range(3))
-        alpha = rng.uniform(0.5, 0.8)
+        spot_color = tuple(int(np.clip(base[i] * rng.uniform(0.15, 0.35), 0, 255)) for i in range(3))
+        alpha = rng.uniform(0.65, 0.90)
 
     # Draw filled polygon on overlay then blend
     overlay = out.copy()
@@ -266,7 +265,7 @@ def generate(input_dir: Path, output_dir: Path, count: int, seed: int = 42) -> N
         if (i + 1) % 50 == 0:
             print(f"  {i + 1}/{count} generated")
 
-    print(f"Done: {count} defect images → {output_dir}")
+    print(f"Done: {count} defect images -> {output_dir}")
     for d, n in counts.items():
         print(f"  {d}: {n}")
 

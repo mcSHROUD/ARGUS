@@ -80,9 +80,22 @@ class Config(BaseModel):
 def load_config(path: str | Path | None = None) -> Config:
     if path is None:
         path = os.environ.get("ARGUS_CONFIG", "config.yaml")
-    path = Path(path)
+    path = Path(path).resolve()
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
+    config_dir = path.parent
     with path.open() as f:
         raw = yaml.safe_load(f)
+    # Resolve relative paths against the config file's directory so the config
+    # works regardless of the working directory or OS.
+    for section, keys in (
+        ("detector", ("model_path",)),
+        ("storage", ("db_path", "images_dir")),
+    ):
+        if section in raw:
+            for key in keys:
+                if key in raw[section]:
+                    p = Path(raw[section][key])
+                    if not p.is_absolute():
+                        raw[section][key] = str(config_dir / p)
     return Config.model_validate(raw)

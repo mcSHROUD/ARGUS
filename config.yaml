@@ -28,14 +28,14 @@ sync:
   window_ms: 300         # окно матчинга событий двух камер
 
 detector:
-  model_path: models/patchcore.ckpt
+  model_path: models_new/patchcore.ckpt
   backbone: wide_resnet50_2
   threshold: 0.5         # перезаписывается при calibrate
   image_size: [256, 256]
 
 storage:
-  db_path: /data/argus.db
-  images_dir: /data
+  db_path: data/argus.db
+  images_dir: data/images
   save_worst_only: true  # сохранять только кадр с максимальным score на камеру
 
 ui:

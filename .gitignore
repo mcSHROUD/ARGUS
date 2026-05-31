@@ -13,6 +13,7 @@ build/
 data/*.db
 data/*.db-wal
 data/*.db-shm
+data/images/
 models/
 
 *.db
