@@ -1,43 +1,67 @@
 {% extends "base.html" %}
 {% block title %}Стакан #{{ cup.id }} — ARGUS{% endblock %}
 {% block content %}
-<p><a href="/">← назад к дашборду</a></p>
 
-<h2>Стакан #{{ cup.id }}
-    <span class="{{ cup.verdict }}">{{ cup.verdict }}</span>
-    <small>(score {{ '%.3f' | format(cup.score) }})</small>
-</h2>
-<p>Время: {{ cup.ts.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-{% if cup.notes %}<p class="notes">⚠ {{ cup.notes }}</p>{% endif %}
+<div class="toolbar">
+    <a href="/" class="btn">&#8592; Дашборд</a>
+</div>
+
+<div class="page-hdr">
+    <h1>
+        Стакан #{{ cup.id }}
+        <span class="badge {% if cup.verdict == 'defect' %}bad{% else %}ok{% endif %}" style="font-size:.9rem;vertical-align:middle;margin-left:.5rem;">
+            {{ 'ДЕФЕКТ' if cup.verdict == 'defect' else 'НОРМА' }}
+        </span>
+    </h1>
+    <p>{{ cup.ts.strftime('%Y-%m-%d %H:%M:%S') }} &nbsp;·&nbsp; Score: <strong>{{ '%.3f' | format(cup.score) }}</strong></p>
+</div>
+
+{% if cup.notes %}
+<div class="notes" style="margin-bottom:1.5rem;">&#9888; {{ cup.notes }}</div>
+{% endif %}
 
 <div class="row">
     <div class="col">
-        <h3>Камера 1</h3>
-        {% if cup.cam1_path %}
-            <img src="/image?path={{ cup.cam1_path }}" alt="cam1">
-        {% else %}<p>нет кадра</p>{% endif %}
+        <div class="card">
+            <div class="card-title">Камера 1</div>
+            {% if cup.cam1_path %}
+                <img src="/image?path={{ cup.cam1_path }}" alt="cam1">
+            {% else %}
+                <p class="text-muted">Нет кадра</p>
+            {% endif %}
+        </div>
     </div>
     <div class="col">
-        <h3>Камера 2</h3>
-        {% if cup.cam2_path %}
-            <img src="/image?path={{ cup.cam2_path }}" alt="cam2">
-        {% else %}<p>нет кадра</p>{% endif %}
+        <div class="card">
+            <div class="card-title">Камера 2</div>
+            {% if cup.cam2_path %}
+                <img src="/image?path={{ cup.cam2_path }}" alt="cam2">
+            {% else %}
+                <p class="text-muted">Нет кадра</p>
+            {% endif %}
+        </div>
     </div>
 </div>
 
 {% if cup.cam1_heatmap_path or cup.cam2_heatmap_path %}
-<h3>Карта аномалий</h3>
 <div class="row">
     <div class="col">
-        {% if cup.cam1_heatmap_path %}
-            <img src="/image?path={{ cup.cam1_heatmap_path }}" alt="heatmap cam1">
-        {% else %}<p>нет данных</p>{% endif %}
+        <div class="card">
+            <div class="card-title">Карта аномалий — Камера 1</div>
+            {% if cup.cam1_heatmap_path %}
+                <img src="/image?path={{ cup.cam1_heatmap_path }}" alt="heatmap cam1">
+            {% else %}<p class="text-muted">Нет данных</p>{% endif %}
+        </div>
     </div>
     <div class="col">
-        {% if cup.cam2_heatmap_path %}
-            <img src="/image?path={{ cup.cam2_heatmap_path }}" alt="heatmap cam2">
-        {% else %}<p>нет данных</p>{% endif %}
+        <div class="card">
+            <div class="card-title">Карта аномалий — Камера 2</div>
+            {% if cup.cam2_heatmap_path %}
+                <img src="/image?path={{ cup.cam2_heatmap_path }}" alt="heatmap cam2">
+            {% else %}<p class="text-muted">Нет данных</p>{% endif %}
+        </div>
     </div>
 </div>
 {% endif %}
+
 {% endblock %}

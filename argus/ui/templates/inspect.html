@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}ARGUS — Проверка фото{% endblock %}
+{% block content %}
+
+<style>
+@keyframes zoomIn { from { opacity:0; transform:scale(.92); } to { opacity:1; transform:scale(1); } }
+</style>
+
+<!-- Lightbox -->
+<div id="modal" onclick="closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:1000;align-items:center;justify-content:center;flex-direction:column;gap:1rem;backdrop-filter:blur(4px);">
+    <img id="modalImg" src="" style="max-width:90vw;max-height:80vh;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.7);animation:zoomIn .2s ease;">
+    <div id="modalCaption" style="color:#e2e8f0;font-size:.9rem;text-align:center;max-width:80vw;font-family:'JetBrains Mono',monospace;"></div>
+    <div style="color:#475569;font-size:.75rem;">нажмите в любое место чтобы закрыть &nbsp;·&nbsp; Esc</div>
+</div>
+
+<div class="page-hdr">
+    <h1>&#128269; Проверка фото</h1>
+    <p>Загрузите снимки стаканов для анализа на дефекты</p>
+</div>
+
+<div class="toolbar">
+    <a href="/" class="btn">&#8592; Дашборд</a>
+    {% if results is not none %}
+    <a href="#results" class="btn btn-primary">&#8595; К результатам</a>
+    {% endif %}
+</div>
+
+<form method="post" enctype="multipart/form-data" id="inspectForm">
+    <div class="upload-area" id="dropZone">
+        <div class="upload-icon">&#128247;</div>
+        <div class="upload-text">Перетащите фото сюда</div>
+        <div class="upload-hint">JPG, PNG · папка целиком или отдельные снимки</div>
+        <div class="upload-buttons">
+            <label class="btn btn-primary" id="folderLabel">&#128193;&nbsp; Выбрать папку</label>
+            <label class="btn" id="fileLabel">&#128444;&nbsp; Выбрать файлы</label>
+        </div>
+        <input type="file" name="files" id="fileInput" multiple
+               accept="image/jpeg,image/png,image/jpg" style="display:none"
+               onchange="handleFiles(this)">
+        <div id="fileCount" class="file-count" style="display:none;"></div>
+    </div>
+
+    <div id="submitRow" style="display:none;margin-top:1.25rem;text-align:center;">
+        <button type="submit" class="btn btn-primary btn-big" id="submitBtn">
+            &#128269;&nbsp; Проверить на дефекты
+        </button>
+    </div>
+</form>
+
+<div id="spinner" style="display:none;text-align:center;padding:3.5rem;">
+    <div class="spinner"></div>
+    <div style="margin-top:1rem;color:var(--muted);font-size:.875rem;">Анализирую изображения…</div>
+</div>
+
+{% if results is not none %}
+<section id="results" style="scroll-margin-top:80px;">
+
+<div class="results-header">
+    {% set defect_count = results | selectattr("is_defect") | list | length %}
+    <div>
+        <h3 style="margin:0;">Результаты проверки</h3>
+        <div style="color:var(--muted);font-size:.8rem;margin-top:.2rem;">
+            {{ results | length }} фото &nbsp;·&nbsp; порог {{ threshold }}
+            {% if mode %}<span class="badge-info" style="padding:.1rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700;margin-left:.4rem;">{{ mode }}</span>{% endif %}
+        </div>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-left:auto;flex-wrap:wrap;">
+        <span class="badge bad">&#10005;&nbsp;{{ defect_count }} дефект{{ 'а' if defect_count in [2,3,4] else '' if defect_count == 1 else 'ов' }}</span>
+        <span class="badge ok">&#10003;&nbsp;{{ results | length - defect_count }} норма</span>
+    </div>
+</div>
+
+{% if results %}
+<div class="table-wrap" style="margin-top:.75rem;">
+<table>
+    <thead>
+        <tr>
+            <th style="width:72px;">Фото</th>
+            <th>Файл</th>
+            <th style="width:145px;">Score</th>
+            <th style="width:130px;">Вид дефекта</th>
+            <th style="width:105px;">Вердикт</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in results %}
+        <tr class="{% if r.is_defect %}row-defect{% endif %}" style="animation:slideUp .2s ease {{ loop.index0 * 0.025 }}s both;">
+            <td>
+                <img src="data:image/jpeg;base64,{{ r.img_b64 }}"
+                     style="width:52px;height:52px;object-fit:cover;cursor:zoom-in;border-radius:6px;transition:transform .2s,box-shadow .2s;"
+                     onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.25)'"
+                     onmouseout="this.style.transform='';this.style.boxShadow=''"
+                     onclick="openModal('data:image/jpeg;base64,{{ r.img_full_b64 }}', '{{ r.filename }}{% if r.defect_type %} — {{ r.defect_type }}{% endif %} · score {{ r.score }}%')">
+            </td>
+            <td style="font-size:.8rem;color:var(--muted);word-break:break-all;" class="mono">{{ r.filename }}</td>
+            <td>
+                <span class="score-bar-wrap">
+                    <span class="score-bar" style="width:{{ [r.score, 100] | min }}%;"></span>
+                    <span class="score-val {% if r.is_defect %}defect{% else %}good{% endif %}">{{ r.score }}%</span>
+                </span>
+            </td>
+            <td style="font-size:.8rem;color:var(--muted);">{% if r.defect_type %}{{ r.defect_type }}{% else %}—{% endif %}</td>
+            <td>
+                {% if r.is_defect %}<span class="badge bad">ДЕФЕКТ</span>
+                {% else %}<span class="badge ok">НОРМА</span>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% else %}
+<div class="card" style="text-align:center;padding:2.5rem;border:1px dashed var(--border);">
+    <div style="color:var(--muted);">Не найдено подходящих изображений (JPG/PNG).</div>
+</div>
+{% endif %}
+</section>
+{% endif %}
+
+{% if history %}
+<div style="display:flex;align-items:center;gap:1rem;margin-top:2.5rem;margin-bottom:.75rem;" id="history">
+    <h3 style="margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);">История сессий</h3>
+    <button onclick="clearHistory()" class="btn btn-danger">&#128465;&nbsp;Очистить</button>
+</div>
+{% for batch in history %}
+{% set b_defects = batch.results | selectattr("is_defect") | list | length %}
+<details style="margin-bottom:.5rem;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;border:1px solid var(--border);transition:background var(--transition),border-color var(--transition);">
+    <summary style="padding:.65rem 1.1rem;cursor:pointer;display:flex;align-items:center;gap:.75rem;font-size:.85rem;list-style:none;user-select:none;">
+        <span style="color:var(--muted);font-size:.78rem;" class="mono">{{ batch.ts }}</span>
+        <span style="color:var(--text);">{{ batch.results | length }} фото</span>
+        <span class="badge bad" style="font-size:.68rem;">{{ b_defects }} деф.</span>
+        <span class="badge ok"  style="font-size:.68rem;">{{ batch.results | length - b_defects }} норм.</span>
+        <span style="margin-left:auto;color:var(--muted);font-size:.75rem;">&#9660;</span>
+    </summary>
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem;border-top:1px solid var(--border);">
+        <tbody>
+        {% for r in batch.results %}
+        <tr class="{% if r.is_defect %}row-defect{% endif %}" style="border-bottom:1px solid var(--border);">
+            <td style="padding:.5rem 1.1rem;width:60px;">
+                <img src="data:image/jpeg;base64,{{ r.img_b64 }}"
+                     style="width:40px;height:40px;object-fit:cover;cursor:zoom-in;border-radius:5px;transition:transform .2s;"
+                     onmouseover="this.style.transform='scale(1.12)'"
+                     onmouseout="this.style.transform=''"
+                     onclick="openModal('data:image/jpeg;base64,{{ r.img_full_b64 }}', '{{ r.filename }}{% if r.defect_type %} — {{ r.defect_type }}{% endif %} · {{ r.score }}%')">
+            </td>
+            <td style="padding:.5rem 1.1rem;color:var(--muted);" class="mono">{{ r.filename }}</td>
+            <td style="padding:.5rem 1.1rem;"><span class="score-val {% if r.is_defect %}defect{% else %}good{% endif %}">{{ r.score }}%</span></td>
+            <td style="padding:.5rem 1.1rem;color:var(--muted);font-size:.75rem;">{% if r.defect_type %}{{ r.defect_type }}{% else %}—{% endif %}</td>
+            <td style="padding:.5rem 1.1rem;">
+                {% if r.is_defect %}<span class="badge bad" style="font-size:.68rem;">ДЕФЕКТ</span>
+                {% else %}<span class="badge ok" style="font-size:.68rem;">НОРМА</span>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</details>
+{% endfor %}
+{% endif %}
+
+<style>
+.upload-area {
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 2.75rem 2rem;
+    text-align: center;
+    transition: border-color var(--transition), background var(--transition), box-shadow .2s;
+    box-shadow: var(--shadow);
+    cursor: default;
+}
+.upload-area:hover { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(59,130,246,.08); }
+.upload-area.drag-over { border-color: var(--primary); background: rgba(59,130,246,.05); box-shadow: 0 0 0 6px rgba(59,130,246,.12); }
+.upload-icon { font-size: 2.8rem; margin-bottom: .65rem; filter: saturate(.8); }
+.upload-text { font-size: 1rem; font-weight: 600; margin-bottom: .35rem; color: var(--text); }
+.upload-hint { color: var(--muted); font-size: .8rem; margin-bottom: 1.2rem; }
+.upload-buttons { display: flex; gap: .75rem; justify-content: center; }
+.file-count { margin-top: .75rem; color: var(--success); font-size: .82rem; font-weight: 600; }
+.results-header { display: flex; align-items: flex-start; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+</style>
+
+<script>
+function openModal(src, caption) {
+    const m = document.getElementById('modal');
+    document.getElementById('modalImg').src = src;
+    document.getElementById('modalCaption').textContent = caption;
+    m.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+function closeModal() {
+    document.getElementById('modal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+function clearHistory() {
+    fetch('/inspect/clear', {method:'POST'}).then(() => location.reload());
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+const form = document.getElementById('inspectForm');
+const submitRow = document.getElementById('submitRow');
+const fileCount = document.getElementById('fileCount');
+const spinner = document.getElementById('spinner');
+const fileInput = document.getElementById('fileInput');
+
+document.getElementById('folderLabel').addEventListener('click', () => {
+    fileInput.setAttribute('webkitdirectory', '');
+    fileInput.removeAttribute('accept');
+    fileInput.click();
+});
+document.getElementById('fileLabel').addEventListener('click', () => {
+    fileInput.removeAttribute('webkitdirectory');
+    fileInput.setAttribute('accept', 'image/jpeg,image/png,image/jpg');
+    fileInput.click();
+});
+function handleFiles(input) {
+    if (!input.files.length) return;
+    const n = input.files.length;
+    const s = n===1?'файл':n<5?'файла':'файлов';
+    fileCount.textContent = `✓ Выбрано: ${n} ${s}`;
+    fileCount.style.display = 'block';
+    submitRow.style.display = 'block';
+}
+form.addEventListener('submit', () => {
+    spinner.style.display = 'block';
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('submitBtn').textContent = 'Анализирую…';
+});
+
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) {
+        const transfer = new DataTransfer();
+        for (const f of e.dataTransfer.files) transfer.items.add(f);
+        fileInput.removeAttribute('webkitdirectory');
+        fileInput.files = transfer.files;
+        handleFiles(fileInput);
+    }
+});
+
+// Auto-scroll to results
+{% if results is not none %}
+document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('results');
+    if (el) setTimeout(() => el.scrollIntoView({behavior:'smooth', block:'start'}), 350);
+});
+{% endif %}
+</script>
+{% endblock %}

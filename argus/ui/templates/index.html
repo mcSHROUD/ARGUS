@@ -2,15 +2,23 @@
 {% block title %}ARGUS — Дашборд{% endblock %}
 {% block content %}
 
-<div class="toolbar">
-    <form method="get">
-        <label>Дата: <input type="date" name="date" value="{{ date }}" onchange="this.form.submit()"></label>
-    </form>
-    <a href="/export?date={{ date }}" class="btn btn-export">⬇ Скачать Excel</a>
+<div class="page-hdr">
+    <h1>Дашборд производственной линии</h1>
+    <p>Мониторинг дефектов в реальном времени</p>
 </div>
 
-<div class="stats-row">
-    <div class="stat-card">
+<div class="toolbar">
+    <form method="get" style="display:flex;align-items:center;gap:.5rem;">
+        <label>&#128197; <input type="date" name="date" value="{{ date }}" onchange="this.form.submit()"></label>
+    </form>
+    <a href="#chart" class="btn">&#128200; График</a>
+    <a href="#defects" class="btn">&#9888; Дефекты</a>
+    <a href="/export?date={{ date }}" class="btn btn-export">&#11015; Excel</a>
+    <a href="/inspect" class="btn btn-inspect">&#128269; Проверить фото</a>
+</div>
+
+<div class="stats-grid" id="stats">
+    <div class="stat-card total">
         <div class="stat-value">{{ stats.total }}</div>
         <div class="stat-label">Всего стаканов</div>
     </div>
@@ -22,61 +30,136 @@
         <div class="stat-value">{{ stats.good }}</div>
         <div class="stat-label">Норма</div>
     </div>
-    <div class="stat-card {% if stats.defect_rate > 10 %}bad{% endif %}">
+    <div class="stat-card {% if stats.defect_rate > 10 %}warn{% endif %}">
         <div class="stat-value">{{ "%.1f" | format(stats.defect_rate) }}%</div>
-        <div class="stat-label">% брака</div>
+        <div class="stat-label">Процент брака</div>
     </div>
 </div>
 
-<h3>Дефекты по часам</h3>
-<canvas id="hourlyChart" height="70"></canvas>
+<div class="card" id="chart">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>&#128200; Дефекты по часам — {{ date }}</span>
+        <a href="#defects" style="font-size:.75rem;color:var(--primary);text-decoration:none;font-weight:500;">Перейти к списку &#8595;</a>
+    </div>
+    <canvas id="hourlyChart" height="60"></canvas>
+</div>
+
 <script>
 const hourly = {{ hourly_json | safe }};
-new Chart(document.getElementById('hourlyChart'), {
-    type: 'bar',
-    data: {
-        labels: hourly.map(d => String(d.hour).padStart(2,'0') + ':00'),
-        datasets: [
-            { label: 'Дефекты', data: hourly.map(d => d.defects), backgroundColor: '#cc000099' },
-            { label: 'Норма',   data: hourly.map(d => d.good),    backgroundColor: '#00aa0033' },
-        ]
-    },
-    options: {
-        responsive: true,
-        plugins: { legend: { position: 'top' } },
-        scales: {
-            x: { stacked: true },
-            y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+let myChart;
+
+function buildChart() {
+    const ctx = document.getElementById('hourlyChart').getContext('2d');
+    const gridColor = isDark() ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.05)';
+    const tickColor = isDark() ? '#64748b' : '#9ca3af';
+
+    if (myChart) myChart.destroy();
+    myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: hourly.map(d => String(d.hour).padStart(2,'0') + ':00'),
+            datasets: [
+                {
+                    label: 'Дефекты',
+                    data: hourly.map(d => d.defects),
+                    backgroundColor: 'rgba(239,68,68,.65)',
+                    borderRadius: 4,
+                    borderSkipped: false,
+                },
+                {
+                    label: 'Норма',
+                    data: hourly.map(d => d.good),
+                    backgroundColor: isDark() ? 'rgba(52,211,153,.18)' : 'rgba(16,185,129,.2)',
+                    borderRadius: 4,
+                    borderSkipped: false,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            animation: { duration: 900, easing: 'easeOutQuart' },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { font: { family: 'Inter', size: 12 }, color: tickColor, boxWidth: 12, borderRadius: 3 }
+                },
+                tooltip: {
+                    backgroundColor: isDark() ? '#1e293b' : '#fff',
+                    borderColor: isDark() ? '#334155' : '#e2e8f0',
+                    borderWidth: 1,
+                    titleColor: isDark() ? '#e2e8f0' : '#0f172a',
+                    bodyColor: isDark() ? '#94a3b8' : '#64748b',
+                    titleFont: { family: 'Inter', weight: '600' },
+                    bodyFont: { family: 'Inter' },
+                    padding: 10,
+                    cornerRadius: 8,
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    grid: { display: false },
+                    ticks: { font: { family: 'Inter', size: 11 }, color: tickColor }
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: { precision: 0, font: { family: 'Inter', size: 11 }, color: tickColor },
+                    grid: { color: gridColor }
+                }
+            }
         }
-    }
-});
+    });
+}
+
+buildChart();
+// Rebuild chart on theme change to update colors
+const observer = new MutationObserver(() => buildChart());
+observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 </script>
 
-<h3>Дефектные стаканы за {{ date }}</h3>
+<div style="display:flex;align-items:center;justify-content:space-between;margin:1.5rem 0 .75rem;" id="defects">
+    <h3 style="margin:0;">&#9888; Дефектные стаканы за {{ date }}</h3>
+    <a href="#chart" style="font-size:.78rem;color:var(--muted);text-decoration:none;">&#8593; к графику</a>
+</div>
+
 {% if cups %}
+<div class="table-wrap">
 <table>
     <thead>
         <tr><th>#</th><th>Время</th><th>Score</th><th>Фото</th><th></th></tr>
     </thead>
     <tbody>
         {% for cup in cups %}
-        <tr>
-            <td>{{ cup.id }}</td>
-            <td>{{ cup.ts.strftime('%H:%M:%S') }}</td>
-            <td class="defect">{{ '%.3f' | format(cup.score) }}</td>
+        <tr class="row-defect" style="animation:slideUp .25s ease {{ loop.index0 * 0.03 }}s both;">
+            <td class="mono text-muted" style="font-size:.8rem;">{{ cup.id }}</td>
+            <td class="mono" style="font-size:.85rem;">{{ cup.ts.strftime('%H:%M:%S') }}</td>
+            <td>
+                <span class="score-bar-wrap">
+                    <span class="score-bar" style="width:{{ [cup.score / 80 * 100, 100] | min }}%;"></span>
+                    <span class="score-val defect">{{ '%.3f' | format(cup.score) }}</span>
+                </span>
+            </td>
             <td>
                 {% if cup.cam1_path %}
-                    <img src="/image?path={{ cup.cam1_path }}" style="height:52px;width:auto;">
+                    <img src="/image?path={{ cup.cam1_path }}" style="height:46px;width:auto;border-radius:6px;transition:transform .2s;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform=''">
                 {% elif cup.cam2_path %}
-                    <img src="/image?path={{ cup.cam2_path }}" style="height:52px;width:auto;">
+                    <img src="/image?path={{ cup.cam2_path }}" style="height:46px;width:auto;border-radius:6px;">
                 {% endif %}
             </td>
-            <td><a href="/cup/{{ cup.id }}">подробнее</a></td>
+            <td><a href="/cup/{{ cup.id }}" class="btn" style="font-size:.78rem;padding:.28rem .7rem;">подробнее</a></td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
 {% else %}
-<p style="color:#0a0">Дефектов за {{ date }} не обнаружено.</p>
+<div class="card" style="text-align:center;padding:3rem;border:1px dashed var(--border);">
+    <div style="font-size:2.8rem;margin-bottom:.75rem;filter:grayscale(.2);">&#9989;</div>
+    <div style="font-weight:700;color:var(--success);font-size:1.05rem;margin-bottom:.3rem;">Дефектов за {{ date }} не обнаружено</div>
+    <div style="color:var(--muted);font-size:.875rem;">Производственная линия работает штатно</div>
+</div>
 {% endif %}
+
 {% endblock %}

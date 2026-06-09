@@ -16,6 +16,8 @@ data/*.db-shm
 data/images/
 models/
 
+CLAUDE.md
+
 *.db
 *.db-wal
 *.db-shm

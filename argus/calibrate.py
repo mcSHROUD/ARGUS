@@ -59,7 +59,7 @@ def train(
         backbone=config.detector.backbone,
         layers=("layer2", "layer3"),
         pre_trained=True,
-        coreset_sampling_ratio=0.1,
+        coreset_sampling_ratio=0.3,  # 3× больше эталонов чем раньше без взрыва по времени
     )
 
     engine = Engine(
