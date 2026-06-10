@@ -1,37 +1,39 @@
-# ARGUS — Система контроля дефектов стаканчиков
+[🇷🇺 Русский](README.ru.md) | 🇬🇧 English
 
-Автоматическая инспекция стаканчиков на производственной линии. Две USB-камеры снимают каждый стаканчик в момент паузы барабана. PatchCore-детектор аномалий и EfficientNet-классификатор в реальном времени выявляют дефекты, сохраняют фотографии и отображают результаты в веб-дашборде со статистикой смены и экспортом в Excel.
+# ARGUS — Cup Defect Detection System
 
-**Без аппаратного триггера.** Обнаружение момента остановки барабана происходит через детекцию движения (MOG2) — никаких изменений в оборудование вносить не нужно.
+Automated quality inspection for a cup production line. Two USB cameras capture each cup while the drum pauses. A PatchCore anomaly detector and EfficientNet classifier flag defects in real time, save photos, and serve a web dashboard with shift statistics and Excel export.
 
----
-
-## Возможности
-
-- **Захват по движению** — 5 кадров с каждой камеры пока стаканчик вращается по инерции, покрывая ~180° поверхности
-- **Обнаружение аномалий** — PatchCore (anomalib), обучается только на хороших стаканчиках, разметка дефектов не нужна
-- **Классификатор дефектов** — EfficientNet-B0 с Grad-CAM, определяет тип дефекта (вмятина, царапина, дефект шва)
-- **Автоматическая настройка порога** — ROC-кривая на валидационной выборке, порог выбирается по максимуму F1
-- **Веб-дашборд** — статистика смены, почасовой график, таблица дефектов с миниатюрами
-- **Детальная страница стаканчика** — кадры с обеих камер + наложение тепловой карты аномалий
-- **Ручная проверка фото** — загрузите любые снимки через браузер и получите вердикт модели
-- **Экспорт в Excel** — отчёт в один клик, дефектные строки выделены красным
-- **Очистка данных** — удаление записей и фотографий за выбранный день для освобождения места на диске
-- **Воспроизведение оффлайн** — запуск полного пайплайна на записанном видео без камер
+**No hardware trigger required.** The moment the drum stops is detected via MOG2 motion analysis — no modifications to the machine needed.
 
 ---
 
-## Архитектура
+## Features
+
+- **Motion-triggered burst capture** — 5 frames per camera while the cup spins from inertia, covering ~180° of surface
+- **Anomaly detection** — PatchCore (anomalib) trained only on good cups, no defect labeling needed
+- **Defect classifier** — EfficientNet-B0 with Grad-CAM, identifies defect type (dent, scratch, seam defect)
+- **Automatic threshold tuning** — ROC curve on validation set, threshold selected at max F1
+- **Web dashboard** — shift statistics, hourly chart, defect table with thumbnails
+- **Per-cup detail page** — both camera frames + anomaly heatmap overlay
+- **Manual photo inspection** — upload any images via browser and get the model's verdict
+- **Excel export** — one-click report with defective rows highlighted red
+- **Data cleanup** — delete records and photos for a selected day to free up disk space
+- **Offline replay** — run the full pipeline on recorded video without cameras
+
+---
+
+## Architecture
 
 ```
 ┌──────────────────────────────────────────────────┐
-│ Docker-контейнер                                 │
+│ Docker container                                 │
 │                                                  │
-│  Веб-интерфейс  (FastAPI + Jinja2, порт 8000)    │
+│  Web UI  (FastAPI + Jinja2, port 8000)           │
 │       │                                          │
-│  Хранилище (SQLite WAL + JPEG на диске)          │
+│  Storage (SQLite WAL + JPEG files on disk)       │
 │       │                                          │
-│  Оркестратор                                     │
+│  Orchestrator                                    │
 │   ├── CameraWorker × 2  (OpenCV + MOG2 FSM)      │
 │   ├── DefectDetector    (PatchCore / anomalib)   │
 │   └── DefectClassifier  (EfficientNet-B0)        │
@@ -40,22 +42,22 @@
        Cam1   Cam2
 ```
 
-| Модуль | Роль |
+| Module | Responsibility |
 |---|---|
 | `argus/motion_fsm.py` | FSM: `WAITING → DRUM_STOP → BURST → COOLDOWN` |
-| `argus/camera.py` | Поток захвата, MOG2, сборка burst-события |
-| `argus/pipeline.py` | Оркестратор, синхронизация двух камер по времени |
-| `argus/detector.py` | Инференс PatchCore, возвращает score + карту аномалий |
-| `argus/classifier.py` | EfficientNet-B0 с Grad-CAM, бинарная классификация |
-| `argus/storage.py` | Запись в SQLite + сохранение JPEG |
-| `argus/calibrate.py` | Обучение PatchCore, построение ROC, запись порога |
-| `argus/ui/app.py` | FastAPI: дашборд, детали стаканчика, экспорт, инспекция, очистка |
+| `argus/camera.py` | Capture loop, MOG2 motion detection, burst collection |
+| `argus/pipeline.py` | Orchestrator, syncs events from two cameras by timestamp |
+| `argus/detector.py` | PatchCore inference, returns score + anomaly map |
+| `argus/classifier.py` | EfficientNet-B0 with Grad-CAM, binary classification |
+| `argus/storage.py` | SQLite writes + JPEG save |
+| `argus/calibrate.py` | Train PatchCore, build ROC, save threshold |
+| `argus/ui/app.py` | FastAPI routes: dashboard, cup detail, export, inspect, cleanup |
 
 ---
 
-## Быстрый старт (Docker)
+## Quick Start (Docker)
 
-**Требования:** Docker, docker-compose, две USB-камеры на `/dev/video0` и `/dev/video1`.
+**Requirements:** Docker, docker-compose, two USB cameras at `/dev/video0` and `/dev/video1`.
 
 ```bash
 git clone https://github.com/mcSHROUD/ARGUS.git
@@ -63,90 +65,90 @@ cd ARGUS
 docker compose up --build
 ```
 
-Интерфейс доступен по адресу [http://localhost:8000](http://localhost:8000)
+UI available at [http://localhost:8000](http://localhost:8000)
 
-> **Примечание:** При первом запуске Docker скачивает веса backbone (~300 МБ). Для работы без интернета установите `TRANSFORMERS_OFFLINE=1` в `docker-compose.yml` после первоначальной загрузки.
+> **Note:** On first launch Docker downloads backbone weights (~300 MB). For air-gapped environments set `TRANSFORMERS_OFFLINE=1` in `docker-compose.yml` after the initial download.
 
 ---
 
-## Команды CLI
+## CLI Commands
 
-Все команды выполняются внутри контейнера:
+All commands run inside the container:
 
 ```bash
-docker compose run --rm argus <команда>
+docker compose run --rm argus <command>
 ```
 
-| Команда | Описание |
+| Command | Description |
 |---|---|
-| `argus run` | Запуск живого детектирования (требует обученную модель) |
-| `argus calibrate` | Обучение PatchCore на нормальных кадрах, настройка порога |
-| `argus ui` | Запуск веб-дашборда |
-| `argus extract-video VIDEO` | Извлечение burst-кадров из записанного видео |
-| `argus replay VIDEO_CAM1` | Запуск пайплайна на записанном видео |
-| `argus diagnose-motion VIDEO` | Анализ motion-scores, рекомендации по порогам FSM |
-| `argus doctor` | Самодиагностика: камеры, пути, зависимости |
+| `argus run` | Start live detection (requires trained model) |
+| `argus calibrate` | Train PatchCore on normal frames, tune threshold |
+| `argus ui` | Launch web dashboard |
+| `argus extract-video VIDEO` | Extract burst frames from recorded video |
+| `argus replay VIDEO_CAM1` | Run pipeline on pre-recorded video |
+| `argus diagnose-motion VIDEO` | Analyse motion scores, suggest FSM thresholds |
+| `argus doctor` | Self-check: cameras, paths, dependencies |
 
-### Примеры
+### Examples
 
 ```bash
-# Извлечь нормальные кадры из видео для обучения
+# Extract normal frames from video for training
 argus extract-video line_cam1.mp4 --cam cam1 --out /data/raw/good/cam1
 
-# Проанализировать движение для подбора порогов FSM
+# Analyse motion to calibrate FSM thresholds
 argus diagnose-motion line_cam1.mp4
 
-# Обучить детектор
+# Train the detector
 argus calibrate --normal /data/raw/good/cam1
 
-# Запустить живое детектирование
+# Start live detection
 argus run
 ```
 
 ---
 
-## Рабочий процесс (новая линия)
+## Workflow (new production line)
 
-### Шаг 1 — Запись видео на производстве
+### Step 1 — Record video on-site
 
 ```bash
 ffmpeg -i /dev/video0 -t 600 line_cam1.mp4
 ffmpeg -i /dev/video1 -t 600 line_cam2.mp4
 ```
 
-### Шаг 2 — Извлечение кадров
+### Step 2 — Extract burst frames
 
 ```bash
 argus extract-video line_cam1.mp4 --cam cam1 --out /data/raw/good/cam1
 argus extract-video line_cam2.mp4 --cam cam2 --out /data/raw/good/cam2
 ```
 
-### Шаг 3 — Подбор порогов движения
+### Step 3 — Diagnose motion thresholds
 
 ```bash
 argus diagnose-motion line_cam1.mp4
 ```
 
-Скопируйте предложенные значения в `config.yaml` → `motion.drum_stop_threshold` / `drum_move_threshold`.
+Copy the suggested values into `config.yaml` → `motion.drum_stop_threshold` / `drum_move_threshold`.
 
-### Шаг 4 — Обучение и калибровка
+### Step 4 — Train and calibrate
 
 ```bash
 argus calibrate --normal /data/raw/good/cam1
 ```
 
-### Шаг 5 — Запуск
+### Step 5 — Run
 
 ```bash
 docker compose up -d
-# открыть http://localhost:8000
+# open http://localhost:8000
 ```
 
 ---
 
-## Конфигурация
+## Configuration
 
-Все параметры в `config.yaml`:
+All parameters in `config.yaml`:
 
 ```yaml
 cameras:
@@ -155,11 +157,11 @@ cameras:
     width: 1920
     height: 1080
     fps: 60
-    roi: [700, 0, 600, 700]   # [x, y, w, h] — зона инспекции барабана
+    roi: [700, 0, 600, 700]   # [x, y, w, h] — inspection zone on the drum
 
 motion:
-  drum_stop_threshold: 0.004   # <= = барабан стоит (подобрать через diagnose-motion)
-  drum_move_threshold: 0.019   # >= = барабан крутится
+  drum_stop_threshold: 0.004   # <= means drum is stopped (tune with diagnose-motion)
+  drum_move_threshold: 0.019   # >= means drum is spinning
 
 burst:
   frames: 5
@@ -167,12 +169,12 @@ burst:
 
 detector:
   model_path: models_new/patchcore.ckpt
-  threshold: 0.5               # перезаписывается командой calibrate
+  threshold: 0.5               # overwritten by argus calibrate
 
 storage:
   db_path: data/argus.db
   images_dir: data/images
-  save_worst_only: true        # сохранять только кадр с максимальным score
+  save_worst_only: true        # save only the frame with the highest score
 
 ui:
   host: 0.0.0.0
@@ -181,32 +183,32 @@ ui:
 
 ---
 
-## Веб-интерфейс
+## Web Interface
 
-| Страница | URL | Описание |
+| Page | URL | Description |
 |---|---|---|
-| Дашборд | `/` | Статистика смены, почасовой график, таблица дефектов |
-| Стаканчик | `/cup/{id}` | Фото с обеих камер, тепловая карта, тип дефекта |
-| Инспекция | `/inspect` | Ручная проверка — загрузите фото и получите вердикт |
-| Экспорт | `/export?date=ГГГГ-ММ-ДД` | Скачать Excel-отчёт за выбранный день |
-| Очистка | `/cleanup` | Удаление данных за день для освобождения диска |
+| Dashboard | `/` | Shift statistics, hourly chart, defect table |
+| Cup detail | `/cup/{id}` | Photos from both cameras, heatmap, defect type |
+| Inspection | `/inspect` | Upload photos manually and get the model's verdict |
+| Export | `/export?date=YYYY-MM-DD` | Download Excel report for a selected day |
+| Cleanup | `/cleanup` | Delete data for a selected day to free disk space |
 
 ---
 
-## Модели
+## Models
 
-Два алгоритма работают совместно:
+Two algorithms work in tandem:
 
-| Модель | Файл | Описание |
+| Model | File | Description |
 |---|---|---|
-| **PatchCore** | `models_new/patchcore.ckpt` | Детектор аномалий, обучается только на хороших стаканчиках |
-| **EfficientNet-B0** | `models_new/classifier.pt` | Бинарный классификатор с Grad-CAM для визуализации |
+| **PatchCore** | `models_new/patchcore.ckpt` | Anomaly detector, trained on good cups only |
+| **EfficientNet-B0** | `models_new/classifier.pt` | Binary classifier with Grad-CAM visualization |
 
-Пороговые значения хранятся в `*.threshold`-файлах рядом с моделями и автоматически перезаписывают значение из `config.yaml`.
+Threshold values are stored in `*.threshold` files alongside the models and automatically override the value in `config.yaml`.
 
 ---
 
-## Схема базы данных
+## Database Schema
 
 ```sql
 cups(id, ts, verdict, score, cam1_path, cam2_path, cam1_heatmap_path, cam2_heatmap_path, notes)
@@ -217,26 +219,26 @@ system_events(id, ts, kind, data)
 
 ---
 
-## Деплой на новое устройство
+## Deploying to a New Device
 
-1. Установить Docker: `sudo apt install docker.io docker-compose-plugin`
-2. Клонировать репозиторий: `git clone https://github.com/mcSHROUD/ARGUS.git`
-3. Подключить камеры, проверить устройства: `ls /dev/video*`
-4. Отредактировать `config.yaml` (устройства камер, ROI)
+1. Install Docker: `sudo apt install docker.io docker-compose-plugin`
+2. Clone the repo: `git clone https://github.com/mcSHROUD/ARGUS.git`
+3. Connect cameras, verify devices: `ls /dev/video*`
+4. Edit `config.yaml` (camera devices, ROI)
 5. `docker compose up --build -d`
-6. При смене линии — перекалибровать: `argus calibrate --normal /data/raw/good/cam1`
+6. When moving to a new line — recalibrate: `argus calibrate --normal /data/raw/good/cam1`
 
 ---
 
-## Стек технологий
+## Stack
 
 - **Python 3.11** · **OpenCV** · **anomalib** (PatchCore) · **PyTorch CPU**
 - **FastAPI** · **Jinja2** · **Chart.js**
 - **SQLite WAL** · **openpyxl**
-- **Docker** + **docker-compose** · **Git LFS** (модели и датасет)
+- **Docker** + **docker-compose** · **Git LFS** (models and dataset)
 
 ---
 
-## Лицензия
+## License
 
 MIT
