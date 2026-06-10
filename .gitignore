@@ -28,3 +28,7 @@ CLAUDE.md
 .DS_Store
 
 uv.lock
+
+# Docker build artifacts — слишком большие для git
+argus_image.tar
+*.tar
