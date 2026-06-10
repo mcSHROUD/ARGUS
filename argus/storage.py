@@ -221,6 +221,75 @@ class Storage:
                 (cup_id, user_verdict, datetime.utcnow().isoformat(), comment),
             )
 
+    def get_available_days(self) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT
+                    date(ts) as day,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN verdict='defect' THEN 1 ELSE 0 END) as defects
+                FROM cups
+                GROUP BY day
+                ORDER BY day DESC"""
+            ).fetchall()
+        result = []
+        for row in rows:
+            day = row["day"]
+            day_dir = self.images_dir / day
+            size = (
+                sum(f.stat().st_size for f in day_dir.rglob("*") if f.is_file())
+                if day_dir.exists()
+                else 0
+            )
+            result.append({
+                "day": day,
+                "total": row["total"],
+                "defects": row["defects"] or 0,
+                "size_mb": round(size / 1024 / 1024, 1),
+            })
+        return result
+
+    def delete_day(self, date: str) -> dict:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT cam1_path, cam2_path, cam1_heatmap_path, cam2_heatmap_path "
+                "FROM cups WHERE date(ts) = ?",
+                (date,),
+            ).fetchall()
+
+        paths = []
+        for row in rows:
+            for col in ("cam1_path", "cam2_path", "cam1_heatmap_path", "cam2_heatmap_path"):
+                p = row[col]
+                if p:
+                    paths.append(Path(p))
+
+        with self._connect() as conn:
+            deleted_cups = conn.execute(
+                "DELETE FROM cups WHERE date(ts) = ?", (date,)
+            ).rowcount
+            conn.execute("DELETE FROM system_events WHERE date(ts) = ?", (date,))
+
+        deleted_files = 0
+        freed_bytes = 0
+        for p in paths:
+            if p.exists():
+                freed_bytes += p.stat().st_size
+                p.unlink()
+                deleted_files += 1
+
+        day_dir = self.images_dir / date
+        if day_dir.exists():
+            try:
+                day_dir.rmdir()
+            except OSError:
+                pass
+
+        with self._connect() as conn:
+            conn.execute("VACUUM")
+
+        return {"cups": deleted_cups, "files": deleted_files, "freed_bytes": freed_bytes}
+
     @staticmethod
     def _row_to_cup(row: sqlite3.Row) -> CupRecord:
         return CupRecord(

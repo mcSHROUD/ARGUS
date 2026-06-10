@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from datetime import date as date_type
 from pathlib import Path
 
@@ -320,6 +321,20 @@ def _classify_defect(mask: np.ndarray, img_h: int, img_w: int) -> str:
     if aspect >= 1.5:
         return "царапина"
     return "вмятина"
+
+
+@app.get("/cleanup", response_class=HTMLResponse)
+def cleanup_page(request: Request) -> HTMLResponse:
+    days = storage.get_available_days()
+    return templates.TemplateResponse(request, "cleanup.html", {"days": days})
+
+
+@app.delete("/cleanup/{date}")
+def cleanup_day(date: str) -> dict:
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        raise HTTPException(400, "invalid date format")
+    result = storage.delete_day(date)
+    return result
 
 
 @app.post("/inspect/clear")

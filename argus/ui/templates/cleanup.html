@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}ARGUS — Очистка данных{% endblock %}
+{% block content %}
+
+<div class="page-hdr">
+    <h1>Очистка данных</h1>
+    <p>Удаление записей и фотографий за выбранный день</p>
+</div>
+
+<div class="toolbar">
+    <a href="/" class="btn">&#8592; Дашборд</a>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem;padding:1rem 1.25rem;border-left:3px solid var(--warning);background:color-mix(in srgb, var(--warning) 8%, var(--card));">
+    <strong style="color:var(--warning);">&#9888; Внимание:</strong>
+    <span style="color:var(--muted);font-size:.9rem;"> Удаление необратимо — записи из БД и JPEG-файлы будут удалены безвозвратно. Перед очисткой убедитесь что Excel-отчёт за нужные дни уже экспортирован.</span>
+</div>
+
+{% if days %}
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>День</th>
+            <th style="text-align:center;">Стаканов</th>
+            <th style="text-align:center;">Дефектов</th>
+            <th style="text-align:right;">Место на диске</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for d in days %}
+        <tr id="row-{{ d.day }}">
+            <td class="mono" style="font-weight:600;">{{ d.day }}</td>
+            <td style="text-align:center;">{{ d.total }}</td>
+            <td style="text-align:center;">
+                {% if d.defects > 0 %}
+                    <span style="color:var(--danger);font-weight:600;">{{ d.defects }}</span>
+                {% else %}
+                    <span style="color:var(--muted);">0</span>
+                {% endif %}
+            </td>
+            <td style="text-align:right;color:{% if d.size_mb > 500 %}var(--danger){% elif d.size_mb > 100 %}var(--warning){% else %}var(--muted){% endif %};">
+                {{ d.size_mb }} МБ
+            </td>
+            <td style="text-align:right;">
+                <button class="btn btn-danger-outline"
+                        onclick="confirmDelete('{{ d.day }}', {{ d.total }}, {{ d.size_mb }})">
+                    &#128465; Удалить
+                </button>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div class="card" style="margin-top:1.5rem;display:flex;align-items:center;justify-content:space-between;">
+    <div style="color:var(--muted);font-size:.875rem;">
+        Всего дней с данными: <strong style="color:var(--text);">{{ days | length }}</strong>
+        &nbsp;·&nbsp;
+        Суммарно на диске: <strong style="color:var(--text);">{{ "%.1f" | format(days | sum(attribute='size_mb')) }} МБ</strong>
+    </div>
+</div>
+
+{% else %}
+<div class="card" style="text-align:center;padding:3rem;border:1px dashed var(--border);">
+    <div style="font-size:2.8rem;margin-bottom:.75rem;">&#128465;</div>
+    <div style="font-weight:700;font-size:1.05rem;margin-bottom:.3rem;">База данных пуста</div>
+    <div style="color:var(--muted);font-size:.875rem;">Нет данных для очистки</div>
+</div>
+{% endif %}
+
+<!-- Modal -->
+<div id="modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div class="card" style="max-width:420px;width:90%;padding:2rem;box-shadow:var(--shadow-lg);">
+        <h3 style="margin-bottom:.75rem;">Подтверждение удаления</h3>
+        <p id="modal-text" style="color:var(--muted);font-size:.9rem;margin-bottom:1.5rem;line-height:1.6;"></p>
+        <div style="display:flex;gap:.75rem;justify-content:flex-end;">
+            <button class="btn" onclick="closeModal()">Отмена</button>
+            <button id="modal-confirm" class="btn" style="background:var(--danger);color:#fff;border-color:var(--danger);">
+                Удалить
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.btn-danger-outline {
+    color: var(--danger);
+    border-color: currentColor;
+    font-size: .8rem;
+    padding: .28rem .75rem;
+}
+.btn-danger-outline:hover {
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+#modal-overlay { display: none; }
+#modal-overlay.open { display: flex; }
+</style>
+
+<script>
+let _pendingDate = null;
+
+function confirmDelete(day, total, sizeMb) {
+    _pendingDate = day;
+    document.getElementById('modal-text').innerHTML =
+        `Будут удалены <strong>${total}</strong> записей и все фото за <strong>${day}</strong>.<br>
+         Освободится ~<strong>${sizeMb} МБ</strong> на диске.<br><br>
+         Это действие необратимо.`;
+    document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+    _pendingDate = null;
+    document.getElementById('modal-overlay').classList.remove('open');
+}
+
+document.getElementById('modal-confirm').addEventListener('click', async () => {
+    if (!_pendingDate) return;
+    const date = _pendingDate;
+    closeModal();
+
+    const btn = document.querySelector(`#row-${date} button`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Удаляю…'; }
+
+    try {
+        const resp = await fetch(`/cleanup/${date}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error(await resp.text());
+        const data = await resp.json();
+
+        const row = document.getElementById(`row-${date}`);
+        if (row) {
+            row.style.opacity = '0';
+            row.style.transition = 'opacity .3s';
+            setTimeout(() => row.remove(), 300);
+        }
+
+        showToast(`Удалено ${data.cups} записей, ${data.files} файлов (${(data.freed_bytes / 1024 / 1024).toFixed(1)} МБ)`);
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, true);
+        if (btn) { btn.disabled = false; btn.textContent = '🗑 Удалить'; }
+    }
+});
+
+function showToast(msg, isError = false) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    Object.assign(t.style, {
+        position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: '2000',
+        background: isError ? 'var(--danger)' : 'var(--success)',
+        color: '#fff', padding: '.75rem 1.25rem', borderRadius: '8px',
+        boxShadow: 'var(--shadow-md)', fontSize: '.875rem', fontWeight: '500',
+        animation: 'slideUp .25s ease',
+    });
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+}
+
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modal-overlay')) closeModal();
+});
+</script>
+
+{% endblock %}
