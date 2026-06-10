@@ -16,7 +16,7 @@ WORKDIR /app
 # CPU-only torch/torchvision FIRST — иначе anomalib тянет CUDA-версию (~5–8 ГБ)
 RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu \
-    torch==2.4.1+cpu torchvision==0.19.1+cpu
+    torch==2.4.1 torchvision==0.19.1
 
 COPY pyproject.toml ./
 COPY argus ./argus

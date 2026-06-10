@@ -221,12 +221,56 @@ system_events(id, ts, kind, data)
 
 ## Deploying to a New Device
 
+### Option A — Internet available (clone from GitHub)
+
 1. Install Docker: `sudo apt install docker.io docker-compose-plugin`
-2. Clone the repo: `git clone https://github.com/mcSHROUD/ARGUS.git`
-3. Connect cameras, verify devices: `ls /dev/video*`
-4. Edit `config.yaml` (camera devices, ROI)
-5. `docker compose up --build -d`
-6. When moving to a new line — recalibrate: `argus calibrate --normal /data/raw/good/cam1`
+2. Add user to docker group: `sudo usermod -aG docker $USER` (re-login after)
+3. Clone the repo: `git clone https://github.com/mcSHROUD/ARGUS.git`
+4. Connect cameras, verify devices: `ls /dev/video*`
+5. Edit `config.yaml` (camera devices, ROI)
+6. `docker compose up --build -d`
+7. When moving to a new line — recalibrate: `argus calibrate --normal /data/raw/good/cam1`
+
+### Option B — Fully offline (USB flash drive)
+
+**On the source machine** — build and save the Docker image:
+
+```bash
+docker compose build
+docker save argus:dev -o argus_image.tar
+```
+
+**Copy to USB flash drive:**
+
+```
+ARGUS/
+├── argus_image.tar      ← saved Docker image (~3–4 GB)
+├── models_new/          ← trained models
+├── docker-compose.yml
+└── config.yaml
+```
+
+**On the target machine:**
+
+```bash
+# 1. Install Docker
+sudo apt install docker.io docker-compose-plugin
+sudo usermod -aG docker $USER   # re-login after this
+
+# 2. Load the image
+docker load -i argus_image.tar
+
+# 3. Edit docker-compose.yml — comment out "build:", leave only "image:"
+#    services:
+#      argus:
+#        image: argus:dev   # ← use loaded image
+#        # build: .         # ← comment out
+
+# 4. Start
+docker compose up -d
+```
+
+UI available at [http://localhost:8000](http://localhost:8000)
 
 ---
 

@@ -221,12 +221,56 @@ system_events(id, ts, kind, data)
 
 ## Деплой на новое устройство
 
+### Вариант А — есть интернет (клонирование с GitHub)
+
 1. Установить Docker: `sudo apt install docker.io docker-compose-plugin`
-2. Клонировать репозиторий: `git clone https://github.com/mcSHROUD/ARGUS.git`
-3. Подключить камеры, проверить устройства: `ls /dev/video*`
-4. Отредактировать `config.yaml` (устройства камер, ROI)
-5. `docker compose up --build -d`
-6. При смене линии — перекалибровать: `argus calibrate --normal /data/raw/good/cam1`
+2. Добавить пользователя в группу docker: `sudo usermod -aG docker $USER` (перелогиниться)
+3. Клонировать репозиторий: `git clone https://github.com/mcSHROUD/ARGUS.git`
+4. Подключить камеры, проверить устройства: `ls /dev/video*`
+5. Отредактировать `config.yaml` (устройства камер, ROI)
+6. `docker compose up --build -d`
+7. При смене линии — перекалибровать: `argus calibrate --normal /data/raw/good/cam1`
+
+### Вариант Б — полностью оффлайн (флешка)
+
+**На исходной машине** — собрать и сохранить Docker-образ:
+
+```bash
+docker compose build
+docker save argus:dev -o argus_image.tar
+```
+
+**Скопировать на флешку:**
+
+```
+ARGUS/
+├── argus_image.tar      ← сохранённый Docker-образ (~3–4 ГБ)
+├── models_new/          ← обученные модели
+├── docker-compose.yml
+└── config.yaml
+```
+
+**На целевой машине:**
+
+```bash
+# 1. Установить Docker
+sudo apt install docker.io docker-compose-plugin
+sudo usermod -aG docker $USER   # после этого перелогиниться
+
+# 2. Загрузить образ
+docker load -i argus_image.tar
+
+# 3. Отредактировать docker-compose.yml — закомментировать "build:", оставить "image:"
+#    services:
+#      argus:
+#        image: argus:dev   # ← использовать загруженный образ
+#        # build: .         # ← закомментировать
+
+# 4. Запустить
+docker compose up -d
+```
+
+Интерфейс доступен по адресу [http://localhost:8000](http://localhost:8000)
 
 ---
 
